@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 13 Observability Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-orange: #fb923c;
+            --accent-red: #f87171;
+            --accent-purple: #a78bfa;
+            --accent-cyan: #22d3ee;
+            --border: #334155;
+            --slo-line: rgba(251, 146, 60, 0.7);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 32px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, #0f172a 0%, #1a1f3a 100%);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(74, 222, 128, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .refresh-info {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding: 24px 32px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .card:nth-child(1)::before { background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); }
+        .card:nth-child(2)::before { background: linear-gradient(90deg, var(--accent-green), #86efac); }
+        .card:nth-child(3)::before { background: linear-gradient(90deg, var(--accent-red), #fca5a5); }
+        .card:nth-child(4)::before { background: linear-gradient(90deg, var(--accent-orange), #fdba74); }
+        .card:nth-child(5)::before { background: linear-gradient(90deg, var(--accent-purple), #c4b5fd); }
+        .card:nth-child(6)::before { background: linear-gradient(90deg, var(--accent-cyan), #67e8f9); }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .card-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .card-sub {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 180px;
+        }
+
+        .slo-banner {
+            display: flex;
+            gap: 16px;
+            padding: 16px 32px;
+            flex-wrap: wrap;
+        }
+
+        .slo-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 20px;
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slo-label { font-size: 0.8rem; color: var(--text-secondary); }
+        .slo-value { font-size: 1rem; font-weight: 700; }
+        .slo-ok { color: var(--accent-green); }
+        .slo-warn { color: var(--accent-orange); }
+        .slo-bad { color: var(--accent-red); }
+
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 600px) {
+            .grid { grid-template-columns: 1fr; padding: 16px; }
+            .header { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>📊 Day 13 — Observability Dashboard</h1>
+    <div class="header-meta">
+        <div class="status-badge"><span class="status-dot"></span> LIVE</div>
+        <div class="refresh-info" id="lastUpdate">Connecting...</div>
+    </div>
+</div>
+
+<div class="slo-banner" id="sloBanner">
+    <div class="slo-item">
+        <span class="slo-label">Latency P95 SLO</span>
+        <span class="slo-value" id="sloLatency">—</span>
+    </div>
+    <div class="slo-item">
+        <span class="slo-label">Error Rate SLO</span>
+        <span class="slo-value" id="sloError">—</span>
+    </div>
+    <div class="slo-item">
+        <span class="slo-label">Cost Budget</span>
+        <span class="slo-value" id="sloCost">—</span>
+    </div>
+    <div class="slo-item">
+        <span class="slo-label">Quality Avg</span>
+        <span class="slo-value" id="sloQuality">—</span>
+    </div>
+</div>
+
+<div class="grid">
+    <!-- Panel 1: Latency -->
+    <div class="card" id="card-latency">
+        <div class="card-title">Latency (ms)</div>
+        <div class="card-value" id="val-latency">—</div>
+        <div class="card-sub">P50 / P95 / P99 · SLO: P95 &lt; 3000ms</div>
+        <div class="chart-container"><canvas id="chart-latency"></canvas></div>
+    </div>
+
+    <!-- Panel 2: Traffic -->
+    <div class="card" id="card-traffic">
+        <div class="card-title">Traffic</div>
+        <div class="card-value" id="val-traffic">—</div>
+        <div class="card-sub">Total requests processed</div>
+        <div class="chart-container"><canvas id="chart-traffic"></canvas></div>
+    </div>
+
+    <!-- Panel 3: Error Rate -->
+    <div class="card" id="card-errors">
+        <div class="card-title">Error Rate</div>
+        <div class="card-value" id="val-errors">—</div>
+        <div class="card-sub">SLO: &lt; 2% · Breakdown by type</div>
+        <div class="chart-container"><canvas id="chart-errors"></canvas></div>
+    </div>
+
+    <!-- Panel 4: Cost -->
+    <div class="card" id="card-cost">
+        <div class="card-title">Cost (USD)</div>
+        <div class="card-value" id="val-cost">—</div>
+        <div class="card-sub">Total accumulated · Budget: $2.50/day</div>
+        <div class="chart-container"><canvas id="chart-cost"></canvas></div>
+    </div>
+
+    <!-- Panel 5: Tokens -->
+    <div class="card" id="card-tokens">
+        <div class="card-title">Tokens In / Out</div>
+        <div class="card-value" id="val-tokens">—</div>
+        <div class="card-sub">Total input vs output tokens</div>
+        <div class="chart-container"><canvas id="chart-tokens"></canvas></div>
+    </div>
+
+    <!-- Panel 6: Quality -->
+    <div class="card" id="card-quality">
+        <div class="card-title">Quality Score</div>
+        <div class="card-value" id="val-quality">—</div>
+        <div class="card-sub">Heuristic proxy · SLO: avg ≥ 0.75</div>
+        <div class="chart-container"><canvas id="chart-quality"></canvas></div>
+    </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000/metrics';
+const REFRESH_MS = 15000;
+const MAX_HISTORY = 30;
+
+// SLO thresholds
+const SLO = { latencyP95: 3000, errorRate: 2, dailyCost: 2.5, quality: 0.75 };
+
+// Time-series history
+const history = {
+    labels: [],
+    latencyP50: [], latencyP95: [], latencyP99: [],
+    traffic: [],
+    cost: [],
+    tokensIn: [], tokensOut: [],
+    quality: [],
+};
+
+// Chart defaults
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(51, 65, 85, 0.5)';
+Chart.defaults.font.family = "'Segoe UI', 'Inter', system-ui";
+
+function createLineChart(ctx, datasets, yTitle, sloLine) {
+    const plugins = [];
+    if (sloLine !== undefined) {
+        plugins.push({
+            id: 'sloLine',
+            afterDraw(chart) {
+                const yScale = chart.scales.y;
+                const y = yScale.getPixelForValue(sloLine);
+                const ctx2 = chart.ctx;
+                ctx2.save();
+                ctx2.strokeStyle = 'rgba(251, 146, 60, 0.7)';
+                ctx2.lineWidth = 2;
+                ctx2.setLineDash([6, 4]);
+                ctx2.beginPath();
+                ctx2.moveTo(chart.chartArea.left, y);
+                ctx2.lineTo(chart.chartArea.right, y);
+                ctx2.stroke();
+                ctx2.fillStyle = 'rgba(251, 146, 60, 0.9)';
+                ctx2.font = '11px Inter, sans-serif';
+                ctx2.fillText(`SLO: ${sloLine}`, chart.chartArea.right - 70, y - 6);
+                ctx2.restore();
+            }
+        });
+    }
+    return new Chart(ctx, {
+        type: 'line',
+        data: { labels: history.labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            animation: { duration: 400 },
+            scales: {
+                x: { display: false },
+                y: { title: { display: true, text: yTitle }, beginAtZero: true }
+            },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } } },
+            elements: { point: { radius: 2 }, line: { tension: 0.3, borderWidth: 2 } }
+        },
+        plugins
+    });
+}
+
+// Initialize charts
+const chartLatency = createLineChart(
+    document.getElementById('chart-latency'),
+    [
+        { label: 'P50', data: history.latencyP50, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)', fill: true },
+        { label: 'P95', data: history.latencyP95, borderColor: '#fb923c', backgroundColor: 'rgba(251,146,60,0.1)', fill: false },
+        { label: 'P99', data: history.latencyP99, borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', fill: false },
+    ], 'ms', SLO.latencyP95
+);
+
+const chartTraffic = createLineChart(
+    document.getElementById('chart-traffic'),
+    [{ label: 'Requests', data: history.traffic, borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.15)', fill: true }],
+    'count'
+);
+
+const chartCost = createLineChart(
+    document.getElementById('chart-cost'),
+    [{ label: 'Total $', data: history.cost, borderColor: '#fb923c', backgroundColor: 'rgba(251,146,60,0.15)', fill: true }],
+    'USD', SLO.dailyCost
+);
+
+const chartTokens = new Chart(document.getElementById('chart-tokens'), {
+    type: 'bar',
+    data: {
+        labels: history.labels,
+        datasets: [
+            { label: 'In', data: history.tokensIn, backgroundColor: 'rgba(167,139,250,0.7)', borderRadius: 3 },
+            { label: 'Out', data: history.tokensOut, backgroundColor: 'rgba(34,211,238,0.7)', borderRadius: 3 },
+        ]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+        scales: { x: { display: false }, y: { beginAtZero: true, title: { display: true, text: 'tokens' } } },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } } }
+    }
+});
+
+const chartQuality = createLineChart(
+    document.getElementById('chart-quality'),
+    [{ label: 'Avg Score', data: history.quality, borderColor: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.15)', fill: true }],
+    'score (0-1)', SLO.quality
+);
+
+// Error chart (doughnut)
+const chartErrors = new Chart(document.getElementById('chart-errors'), {
+    type: 'doughnut',
+    data: { labels: ['No errors'], datasets: [{ data: [1], backgroundColor: ['rgba(74,222,128,0.3)'], borderWidth: 0 }] },
+    options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+        cutout: '60%',
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } } }
+    }
+});
+
+function sloClass(value, threshold, lower) {
+    if (lower) return value >= threshold ? 'slo-ok' : value >= threshold * 0.8 ? 'slo-warn' : 'slo-bad';
+    return value <= threshold ? 'slo-ok' : value <= threshold * 1.5 ? 'slo-warn' : 'slo-bad';
+}
+
+function setSlo(id, text, cls) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'slo-value ' + cls;
+}
+
+async function refresh() {
+    try {
+        const res = await fetch(API);
+        const d = await res.json();
+
+        const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // Push to history
+        history.labels.push(now);
+        history.latencyP50.push(d.latency_p50);
+        history.latencyP95.push(d.latency_p95);
+        history.latencyP99.push(d.latency_p99);
+        history.traffic.push(d.traffic);
+        history.cost.push(d.total_cost_usd);
+        history.tokensIn.push(d.tokens_in_total);
+        history.tokensOut.push(d.tokens_out_total);
+        history.quality.push(d.quality_avg);
+
+        // Trim
+        if (history.labels.length > MAX_HISTORY) {
+            Object.values(history).forEach(arr => { if (Array.isArray(arr)) arr.shift(); });
+        }
+
+        // Update values
+        document.getElementById('val-latency').textContent = `${d.latency_p50} / ${d.latency_p95} / ${d.latency_p99}`;
+        document.getElementById('val-traffic').textContent = d.traffic.toLocaleString();
+
+        const totalErrors = Object.values(d.error_breakdown).reduce((a, b) => a + b, 0);
+        const errorPct = d.traffic > 0 ? ((totalErrors / d.traffic) * 100).toFixed(1) : '0.0';
+        document.getElementById('val-errors').textContent = `${errorPct}% (${totalErrors} errs)`;
+
+        document.getElementById('val-cost').textContent = `$${d.total_cost_usd.toFixed(4)}`;
+        document.getElementById('val-tokens').textContent = `${d.tokens_in_total.toLocaleString()} / ${d.tokens_out_total.toLocaleString()}`;
+        document.getElementById('val-quality').textContent = d.quality_avg.toFixed(4);
+
+        // SLO banner
+        setSlo('sloLatency', `${d.latency_p95}ms`, sloClass(d.latency_p95, SLO.latencyP95, false));
+        setSlo('sloError', `${errorPct}%`, sloClass(parseFloat(errorPct), SLO.errorRate, false));
+        setSlo('sloCost', `$${d.total_cost_usd.toFixed(4)}`, sloClass(d.total_cost_usd, SLO.dailyCost, false));
+        setSlo('sloQuality', d.quality_avg.toFixed(2), sloClass(d.quality_avg, SLO.quality, true));
+
+        // Update error doughnut
+        const errLabels = Object.keys(d.error_breakdown);
+        const errValues = Object.values(d.error_breakdown);
+        if (errLabels.length > 0) {
+            const colors = ['#f87171', '#fb923c', '#fbbf24', '#a78bfa', '#38bdf8'];
+            chartErrors.data.labels = errLabels;
+            chartErrors.data.datasets[0].data = errValues;
+            chartErrors.data.datasets[0].backgroundColor = errLabels.map((_, i) => colors[i % colors.length]);
+        } else {
+            chartErrors.data.labels = ['No errors'];
+            chartErrors.data.datasets[0].data = [1];
+            chartErrors.data.datasets[0].backgroundColor = ['rgba(74,222,128,0.3)'];
+        }
+
+        // Refresh all charts
+        [chartLatency, chartTraffic, chartCost, chartTokens, chartQuality, chartErrors].forEach(c => c.update());
+
+        document.getElementById('lastUpdate').textContent = `Updated: ${now} · Refresh: ${REFRESH_MS/1000}s`;
+    } catch (e) {
+        document.getElementById('lastUpdate').textContent = `⚠ Connection error — retrying...`;
+    }
+}
+
+// Initial + interval
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>
