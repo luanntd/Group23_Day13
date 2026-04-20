@@ -38,3 +38,33 @@
   - shorten prompts
   - route easy requests to cheaper model
   - apply prompt cache
+
+## 4. Quality score drop
+- Severity: P2
+- Trigger: `quality_avg < 0.60 for 15m`
+- Impact: response quality degradation, user trust erosion
+- First checks:
+  1. Check quality_avg trend in dashboard
+  2. Filter traces with quality_score < 0.5
+  3. Check if RAG retrieval is returning fallback docs only
+  4. Compare recent model responses for hallucination patterns
+- Mitigation:
+  - verify RAG corpus is accessible and up-to-date
+  - check if model endpoint changed or degraded
+  - temporarily route to higher-quality model
+  - add fallback quality gate before returning response
+
+## 5. Token budget exceeded
+- Severity: P3
+- Trigger: `tokens_out_total > 50000 per hour`
+- Impact: unexpected cost increase, possible prompt injection or runaway generation
+- First checks:
+  1. Check tokens_in vs tokens_out ratio in dashboard
+  2. Identify requests with unusually high token counts in traces
+  3. Check if `cost_spike` incident toggle is active
+  4. Review recent feature changes that may have altered prompt templates
+- Mitigation:
+  - set max_tokens limit on LLM calls
+  - add output length guardrail
+  - implement per-user rate limiting
+  - alert finops team for budget review

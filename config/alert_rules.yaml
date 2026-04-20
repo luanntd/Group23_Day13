@@ -5,15 +5,31 @@ alerts:
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#1-high-latency-p95
+
   - name: high_error_rate
     severity: P1
     condition: error_rate_pct > 5 for 5m
     type: symptom-based
     owner: team-oncall
     runbook: docs/alerts.md#2-high-error-rate
+
   - name: cost_budget_spike
     severity: P2
     condition: hourly_cost_usd > 2x_baseline for 15m
     type: symptom-based
     owner: finops-owner
     runbook: docs/alerts.md#3-cost-budget-spike
+
+  - name: quality_score_drop
+    severity: P2
+    condition: quality_avg < 0.60 for 15m
+    type: symptom-based
+    owner: ml-oncall
+    runbook: docs/alerts.md#4-quality-score-drop
+
+  - name: token_budget_exceeded
+    severity: P3
+    condition: tokens_out_total > 50000 per hour
+    type: cause-based
+    owner: finops-owner
+    runbook: docs/alerts.md#5-token-budget-exceeded
